@@ -107,7 +107,7 @@ class BlockKitEncoder(json.JSONEncoder):
             return {
                 "type": "header",
                 "text": obj.text,
-            },
+            }
         if isinstance(obj, Message):
             v = {}
             if obj.text:
