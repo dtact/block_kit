@@ -1,9 +1,52 @@
-from pycryptoaddress import AddressExtractor 
-extractor = AddressExtractor()
+from block_kit import *
+import json
 
-for extract in extractor.finditer("""You need make payment deposit to this coding our address give you instruction
- 
-Address BTC 1CryptcfFKJJES1Gh5zAoFtmnPYLCRcMmY"""):
-    print(extract)
+from benchmarkit import benchmark, benchmark_run
+
+SAVE_PATH = "/tmp/benchmark_time.jsonl"
 
 
+@benchmark(num_iters=100, save_params=True)
+def search_in_list(num_items=N):
+    for x in range(0, 10000):
+        m = Message(
+            Blocks(
+                Header(
+                    PlainText("test"),
+                ),
+                Section(
+                    PlainText("test"),
+                ),
+                Section(
+                    Fields(
+                        MarkDown("test"),
+                    ),
+                ),
+                Divider(),
+                Image(
+                    ImageURL("https://via.placeholder.com/200x100"),
+                    AltText("alt"),
+                ),
+                Actions(
+                    Elements(
+                        Button(
+                            PlainText("Create case"),
+                            ActionId("actionId-0"),
+                            Value("click me"),
+                        ),
+                        Button(
+                            PlainText("Create case"),
+                            ActionId("actionId-0"),
+                            Value("click me"),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+
+benchmark_results = benchmark_run(
+    [search_in_list],
+    SAVE_PATH,
+    comment="initial benchmark search",
+)

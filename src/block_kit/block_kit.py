@@ -1,129 +1,227 @@
-import json
+def wrap(cls):
+    _old_new = cls.__new__
+    _old_init = cls.__init__
 
-def image(image_url, alt_text=''):
-    if not image_url:
-        return None
+    def __new__(cls_, *args, **kwargs):
+        if issubclass(cls, str):
+            d = args[0]
+            if d is None:
+                return
+            elif type(d) is str:
+                pass
+            elif type(d) is int:
+                d = str(d)
+            else:
+                raise Exception(f"{type(d)} not accepted for type {cls}")
 
-    return {"type": "image", "image_url": image_url, "alt_text": alt_text}
+            obj = _old_new(cls, d)
+            return obj
+        elif issubclass(cls, int):
+            d = args[0]
+            if d is None:
+                return
+            elif type(d) is str:
+                d = int(d)
+            elif type(d) is int:
+                pass
+            else:
+                raise Exception(f"{type(d)} not accepted for type {cls}")
 
-def markdown(text):
-    return MarkDown(text)
+            obj = _old_new(cls, d)
+            return obj
+        elif issubclass(cls, list):
+            allowed_types = cls._allowed_types
 
-class MarkDown:
+            d = []
+
+            for arg in args:
+                if arg is None:
+                    continue
+                elif type(arg) is dict and not arg:
+                    # empty dict
+                    continue
+                elif type(arg) is list and not arg:
+                    # empty dict
+                    continue
+
+                allowed = False
+
+                for t in allowed_types:
+                    if type(arg) is t:
+                        allowed = True
+
+                        d.append(arg)
+
+                if not allowed:
+                    raise Exception(
+                        f"Type {type(arg)}({arg}) not supported for {cls}, allowed are: {allowed_types}"
+                    )
+
+            if not d:
+                return None
+
+            obj = _old_new(cls, d)
+            _old_init(obj, d)
+            return obj  # or d
+
+        elif issubclass(cls, dict):
+            allowed_types = cls._allowed_types
+
+            d = {}
+
+            for arg in args:
+                if arg is None:
+                    continue
+                elif type(arg) is dict and not arg:
+                    # empty dict
+                    continue
+                elif type(arg) is list and not arg:
+                    # empty dict
+                    continue
+
+                allowed = False
+
+                for (k, t) in allowed_types.items():
+                    if type(t) is list:
+                        for t2 in t:
+                            if type(arg) is t2:
+                                allowed = True
+
+                                d[k] = arg
+                    elif type(t) is str:
+                        allowed = True
+                        d[k] = t
+                    else:
+                        if type(arg) is t:
+                            allowed = True
+
+                            d[k] = arg
+
+                if not allowed:
+                    raise Exception(
+                        f"Type {type(arg)}({arg}) not supported for {cls}, \
+                        allowed are: {allowed_types}"
+                    )
+
+            if not d:
+                return None
+
+            obj = _old_new(cls, d)
+            _old_init(obj, d)
+            return obj  # or d
+
+    def __dummy_init__(self, *args, **kwargs):
+        # we'll override the init, as it will
+        # expect different arguments
+        pass
+
+    cls.__new__ = __new__
+    cls.__init__ = __dummy_init__
+    return cls
+
+
+@wrap
+class ImageURL(str):
+    pass
+
+
+@wrap
+class AltText(str):
+    pass
+
+
+@wrap
+class Image(dict):
+    _allowed_types = {"image_url": ImageURL, "alt_text": AltText, "type": "image"}
+
+
+class PlainText(dict):
     def __init__(self, text, emoji=True):
-        if text:
-            self.text = text.strip()
-        self.emoji = emoji
+        super().__init__(
+            {
+                "text": text.strip(),
+                "type": "plain_text",
+                "emoji": emoji,
+            },
+        )
 
-def fields(*args):
-    return Fields(*args)
 
-class Fields: 
-    def __init__(self, *args):
-        self.fields = [arg for arg in args if arg]
-                
-def blocks(*args):
-    return Blocks(*args)
-
-class Blocks: 
-    def __init__(self, *args):
-        self.blocks = [arg for arg in args if arg]
-            
-def section(*args):
-    return Section(*args)
-
-class Section:
-    def __init__(self, *args):
-        self.text = None
-        self.fields = []
-        for arg in args:
-            if isinstance(arg, str) or isinstance(arg, PlainText) or isinstance(arg, MarkDown):
-                self.text = arg
-            elif isinstance(arg, Fields):
-                self.fields = arg
-            else:
-                raise Exception("Type not supported for section")
-
-def message(*args):
-    return Message(*args)
-
-def actions(*args):
-    return {"type": "actions", "elements": [arg for arg in args if arg]}
-
-def header(text):
-    return Header(text)
-
-class Header:
+class MarkDown(dict):
     def __init__(self, text):
-        self.text = text
-        
-def plain_text(text, emoji=True):
-    return PlainText(text, emoji)
+        super().__init__(
+            {
+                "text": text.strip(),
+                "type": "mrkdwn",
+            },
+        )
 
-class PlainText:
-    def __init__(self, text, emoji):
-        self.text = text.strip()
-        self.emoji = emoji
 
-class Message:
-    def __init__(self, *args):
-        self.text = None
-        self.blocks = []
-        
-        for arg in args:
-            if isinstance(arg, str):
-                self.text = arg
-            elif isinstance(arg, Blocks):
-                self.blocks = arg
-            else:
-                raise Exception("Type not supported for message")
+@wrap
+class Divider(dict):
+    _allowed_types = {
+        "type": "divider",
+    }
 
-        pass
-    
-class Button:
-    def __init__(self, text, value, action, action_id):
-        self.text = text
-        self.value = value
-        self.action = action
-        self.action_id = action_id
-        pass
-    
-def button(text, value, action, action_id):
-    return Button(text=text, value=value, action=action, action_id=action_id)
 
-class BlockKitEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Button):
-            return {"type": "button", "text": obj.text, "value": obj.value, "action_id": obj.action_id}
-        if isinstance(obj, Fields):
-            return obj.fields
-        if isinstance(obj, Blocks):
-            return obj.blocks
-        if isinstance(obj, PlainText):
-            return {"type": "plain_text", "text": obj.text, "emoji": obj.emoji}
-        if isinstance(obj, MarkDown):
-            return {"type": "mrkdwn", "text": obj.text.strip()}
-        if isinstance(obj, Header):
-            return {
-                "type": "header",
-                "text": obj.text,
-            }
-        if isinstance(obj, Message):
-            v = {}
-            if obj.text:
-                v['text'] = obj.text
-            if obj.blocks:
-                v['blocks'] = obj.blocks
-            return v
-        if isinstance(obj, Section):
-            v = {
-                'type': 'section',
-            }            
-            if obj.text:
-                v['text'] = obj.text
-            if obj.fields:
-                v['fields'] = obj.fields
-            return v
-            
-        return json.JSONEncoder.default(self, obj)
-    
+
+@wrap
+class Header(dict):
+    _allowed_types = {"text": [PlainText, MarkDown, str], "type": "header"}
+
+
+@wrap
+class Action(str):
+    pass
+
+
+@wrap
+class ActionId(str):
+    pass
+
+
+@wrap
+class Value(str):
+    pass
+
+
+@wrap
+class Fields(list):
+    _allowed_types = [MarkDown, PlainText]
+
+@wrap
+class Section(dict):
+    _allowed_types = {
+        "text": [PlainText, MarkDown, str],
+        "type": "section",
+        "fields": Fields,
+    }
+
+
+@wrap
+class Button(dict):
+    _allowed_types = {
+        "type": "button",
+        "text": [PlainText, MarkDown, str],
+        "value": Value,
+        "action": Action,
+        "action_id": ActionId,
+    }
+
+
+@wrap
+class Elements(list):
+    _allowed_types = [Button]
+
+
+@wrap
+class Actions(dict):
+    _allowed_types = {"elements": Elements, "type": "actions"}
+
+@wrap
+class Blocks(list):
+    _allowed_types = [Section, Divider, Image, Header, Actions]
+
+
+@wrap
+class Message(dict):
+    _allowed_types = {"blocks": Blocks}
