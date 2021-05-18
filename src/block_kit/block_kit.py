@@ -1,3 +1,87 @@
+class Wrap:
+    def __new__(cls, s):
+        if s is None:
+            return
+        elif type(s) is str:
+            pass
+        elif type(s) is int:
+            s = str(s)
+        else:
+            raise Exception(f"{type(s)} not accepted for type {cls}")
+
+        return super(Wrap, cls).__new__(cls, s)
+
+class WrapDict:
+    def __new__(cls, *args, **kwargs):
+        print(cls)
+        allowed_types = cls._allowed_types
+
+        d = {}
+
+        for arg in args:
+            if arg is None:
+                continue
+            elif type(arg) is dict and not arg:
+                # empty dict
+                continue
+            elif type(arg) is list and not arg:
+                # empty dict
+                continue
+
+            allowed = False
+
+            for (k, t) in allowed_types.items():
+                if type(t) is list:
+                    for t2 in t:
+                        if type(arg) is t2:
+                            allowed = True
+
+                            d[k] = arg
+                elif type(t) is str:
+                    allowed = True
+                    d[k] = t
+                else:
+                    if type(arg) is t:
+                        allowed = True
+
+                        d[k] = arg
+
+            if not allowed:
+                raise Exception(
+                    f"Type {type(arg)}({arg}) not supported for {cls}, \
+                    allowed are: {allowed_types}"
+                )
+
+        if not d:
+            return None
+
+        obj = super(WrapDict, cls).__new__(cls, d)
+        # cls.__init__(obj, d)
+        super(WrapDict, cls).__init__(obj, d)
+        if hasattr(obj, '_old_init'):
+            print("OLDINIT")
+            obj._old_init(d)
+        #    obj.__remco__(d)
+        return obj
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+def wrapdict(cls):
+    _old_init2 = cls.__init__
+
+    class cls(WrapDict, dict):
+        _allowed_types = cls._allowed_types
+        _old_init = _old_init2
+
+        def __init__(self, *args, **kwargs):
+            #print("WRAPDICT", cls, _old_init)
+            super().__init__(args, kwargs)
+            #_old_init(args, kwargs)
+
+    # cls.__init__ = cls()
+    return cls
+
 def wrap(cls):
     _old_new = cls.__new__
     _old_init = cls.__init__
@@ -120,18 +204,15 @@ def wrap(cls):
     return cls
 
 
-@wrap
-class ImageURL(str):
+class ImageURL(Wrap, str):
     pass
 
 
-@wrap
-class AltText(str):
+class AltText(Wrap, str):
     pass
 
 
-@wrap
-class Image(dict):
+class Image(WrapDict, dict):
     _allowed_types = {"image_url": ImageURL, "alt_text": AltText, "type": "image"}
 
 
@@ -156,31 +237,25 @@ class MarkDown(dict):
         )
 
 
-@wrap
-class Divider(dict):
+class Divider(WrapDict, dict):
     _allowed_types = {
         "type": "divider",
     }
 
 
-
-@wrap
-class Header(dict):
+class Header(WrapDict, dict):
     _allowed_types = {"text": [PlainText, MarkDown, str], "type": "header"}
 
 
-@wrap
-class Action(str):
+class Action(Wrap, str):
     pass
 
 
-@wrap
-class ActionId(str):
+class ActionId(Wrap, str):
     pass
 
 
-@wrap
-class Value(str):
+class Value(Wrap, str):
     pass
 
 
@@ -188,16 +263,14 @@ class Value(str):
 class Fields(list):
     _allowed_types = [MarkDown, PlainText]
 
-@wrap
-class Section(dict):
+class Section(WrapDict, dict):
     _allowed_types = {
         "text": [PlainText, MarkDown, str],
         "type": "section",
         "fields": Fields,
     }
 
-
-@wrap
+@wrapdict
 class Button(dict):
     _allowed_types = {
         "type": "button",
@@ -207,14 +280,19 @@ class Button(dict):
         "action_id": ActionId,
     }
 
+    def __new__(cls, d):
+        self['test'] = {
+            **d,
+            "REMCO": "RECM",
+        }
+        print("BUTTON, INIT", d)
 
 @wrap
 class Elements(list):
     _allowed_types = [Button]
 
 
-@wrap
-class Actions(dict):
+class Actions(WrapDict, dict):
     _allowed_types = {"elements": Elements, "type": "actions"}
 
 @wrap
@@ -222,6 +300,5 @@ class Blocks(list):
     _allowed_types = [Section, Divider, Image, Header, Actions]
 
 
-@wrap
-class Message(dict):
+class Message(WrapDict, dict):
     _allowed_types = {"blocks": Blocks}
