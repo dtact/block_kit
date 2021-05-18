@@ -11,6 +11,7 @@ class Wrap:
 
         return super(Wrap, cls).__new__(cls, s)
 
+
 class WrapDict:
     def __new__(cls, *args, **kwargs):
         print(cls)
@@ -55,10 +56,15 @@ class WrapDict:
         if not d:
             return None
 
+        if hasattr(cls, "_old_new"):
+            print("OLDNEW")
+            obj = cls._old_new(cls, d)
+            return obj
+
         obj = super(WrapDict, cls).__new__(cls, d)
         # cls.__init__(obj, d)
         super(WrapDict, cls).__init__(obj, d)
-        if hasattr(obj, '_old_init'):
+        if hasattr(obj, "_old_init"):
             print("OLDINIT")
             obj._old_init(d)
         #    obj.__remco__(d)
@@ -67,20 +73,28 @@ class WrapDict:
     def __init__(self, *args, **kwargs):
         pass
 
+
 def wrapdict(cls):
     _old_init2 = cls.__init__
+    _old_new2 = cls.__new__
 
     class cls(WrapDict, dict):
         _allowed_types = cls._allowed_types
         _old_init = _old_init2
+        _old_new = _old_new2
+
+        def __new__(cls, d):
+            print("wrapdict new")
+            return super().__new__(cls, d)
 
         def __init__(self, *args, **kwargs):
-            #print("WRAPDICT", cls, _old_init)
+            # print("WRAPDICT", cls, _old_init)
             super().__init__(args, kwargs)
-            #_old_init(args, kwargs)
+            # _old_init(args, kwargs)
 
     # cls.__init__ = cls()
     return cls
+
 
 def wrap(cls):
     _old_new = cls.__new__
@@ -263,12 +277,14 @@ class Value(Wrap, str):
 class Fields(list):
     _allowed_types = [MarkDown, PlainText]
 
+
 class Section(WrapDict, dict):
     _allowed_types = {
         "text": [PlainText, MarkDown, str],
         "type": "section",
         "fields": Fields,
     }
+
 
 @wrapdict
 class Button(dict):
@@ -281,11 +297,14 @@ class Button(dict):
     }
 
     def __new__(cls, d):
-        self['test'] = {
-            **d,
-            "REMCO": "RECM",
-        }
-        print("BUTTON, INIT", d)
+        print("NEW BUTTON")
+        return super(dict, cls).__new__(
+            {
+                **d,
+                "remco": "remco",
+            }
+        )
+
 
 @wrap
 class Elements(list):
@@ -294,6 +313,7 @@ class Elements(list):
 
 class Actions(WrapDict, dict):
     _allowed_types = {"elements": Elements, "type": "actions"}
+
 
 @wrap
 class Blocks(list):
